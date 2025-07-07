@@ -2,3 +2,4 @@ aiogram==3.4.1
 openai
 aiohttp
 python-dotenv
+g4f
