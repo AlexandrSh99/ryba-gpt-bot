@@ -56,7 +56,7 @@ async def handle_request(message: Message):
     try:
         await asyncio.sleep(1)
         response = client.chat.completions.create(
-            model="openai/gpt-3.5-turbo",
+            model="gpt-4o",
             messages=[{"role": "user", "content": message.text}]
         )
         await message.answer(response.choices[0].message.content)
