@@ -19,8 +19,10 @@ WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 client = OpenAI(
-    api_key=OPENROUTER_API_KEY,
-    base_url="https://openrouter.ai/api/v1"
+    base_url="https://openrouter.ai/api/v1",
+    default_headers={
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}"
+    }
 )
 
 bot = Bot(token=BOT_TOKEN)
