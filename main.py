@@ -1,60 +1,56 @@
-import asyncio
-import logging
 import os
+import logging
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
-from aiogram.filters import CommandStart
-from g4f.client import Client
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 from dotenv import load_dotenv
+from collections import defaultdict
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_HOST = os.getenv("RENDER_EXTERNAL_URL")
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
-gpt_client = Client()
+dp = Dispatcher(storage=MemoryStorage())
 
-# Хранилище количества запросов
-user_requests = {}
+# Память на запросы пользователей
+user_requests = defaultdict(int)
 
-# Максимум бесплатных запросов
-FREE_LIMIT = 6
+# Ответы
+START_MESSAGE = (
+    "👋 Привет! Я РыбаГид — бот для помощи в обучении рыбалке.\n"
+    "Я подскажу по снастям, техникам ловли и особенностям водоёмов.\n\n"
+    "Бесплатно доступно 6 запросов. Потом — доступ после оплаты."
+)
+LIMIT_MESSAGE = "❌ Вы израсходовали 6 бесплатных запросов. Для продолжения — оплатите доступ."
 
-@dp.message(CommandStart())
-async def start(message: Message):
-    await message.answer(
-        "🎣 Привет! Я бот для обучения рыбалке.\n"
-        "Можешь задать любой вопрос про снасти, водоёмы, наживки и т.д.\n\n"
-        "Бесплатно доступно 6 запросов, дальше — оплата 💰"
-    )
+@dp.message(F.text == "/start")
+async def cmd_start(message: Message):
+    await message.answer(START_MESSAGE)
 
 @dp.message(F.text)
-async def handle_message(message: Message):
+async def handle_request(message: Message):
     user_id = message.from_user.id
-    user_requests[user_id] = user_requests.get(user_id, 0)
-
-    if user_requests[user_id] >= FREE_LIMIT:
-        await message.answer("🔒 Лимит из 6 бесплатных сообщений исчерпан. Чтобы продолжить — оплати доступ.")
-        return
-
-    await message.answer("🕔 Думаю...")
-
-    try:
-        response = gpt_client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": message.text}]
-        )
+    if user_requests[user_id] >= 6:
+        await message.answer(LIMIT_MESSAGE)
+    else:
         user_requests[user_id] += 1
-        await message.answer(response.choices[0].message.content)
+        await message.answer(f"✅ Запрос #{user_requests[user_id]} принят! (Пока ChatGPT отключён)")
 
-    except Exception as e:
-        logging.exception(e)
-        await message.answer("⚠️ Ошибка при обращении к AI.")
+async def on_startup(bot: Bot):
+    await bot.set_webhook(WEBHOOK_URL)
 
-async def main():
-    logging.basicConfig(level=logging.INFO)
-    await dp.start_polling(bot)
+def create_app():
+    app = web.Application()
+    dp.startup.register(on_startup)
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp)
+    return app
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    web.run_app(create_app(), port=int(os.environ.get("PORT", 10000)))
