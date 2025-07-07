@@ -54,7 +54,7 @@ async def handle_request(message: Message):
     except Exception as e:
         await message.answer(f"⚠️ Ошибка при обращении к AI: {e}")
 
-async def on_startup(_: web.Application):
+async def on_startup():
     await bot.set_webhook(WEBHOOK_URL)
 
 def create_app():
