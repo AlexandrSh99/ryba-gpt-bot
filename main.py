@@ -7,7 +7,8 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiohttp import web
 from dotenv import load_dotenv
 from collections import defaultdict
-import g4f
+import openai
+import asyncio
 
 load_dotenv()
 
@@ -15,6 +16,10 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 WEBHOOK_HOST = os.getenv("RENDER_EXTERNAL_URL")
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+openai.api_key = OPENROUTER_API_KEY
+openai.base_url = "https://openrouter.ai/api/v1"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -45,12 +50,12 @@ async def handle_request(message: Message):
     await message.answer("🔄 Обрабатываю запрос...")
 
     try:
-        response = await g4f.ChatCompletion.create_async(
-            model="gpt-4o-mini",
-            provider=g4f.Provider.You,
+        await asyncio.sleep(1)
+        response = openai.ChatCompletion.create(
+            model="openrouter/gpt-3.5-turbo",
             messages=[{"role": "user", "content": message.text}]
         )
-        await message.answer(response)
+        await message.answer(response.choices[0].message.content)
     except Exception as e:
         await message.answer(f"⚠️ Ошибка при обращении к AI: {e}")
 
