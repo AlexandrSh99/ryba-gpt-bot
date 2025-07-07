@@ -47,7 +47,7 @@ async def handle_request(message: Message):
     try:
         response = await g4f.ChatCompletion.create_async(
             model="gpt-4o-mini",
-            provider=g4f.Provider.Bing,
+            provider=g4f.Provider.You,
             messages=[{"role": "user", "content": message.text}]
         )
         await message.answer(response)
