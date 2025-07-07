@@ -7,8 +7,8 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiohttp import web
 from dotenv import load_dotenv
 from collections import defaultdict
-import openai
 import asyncio
+from openai import OpenAI
 
 load_dotenv()
 
@@ -18,8 +18,10 @@ WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-openai.api_key = OPENROUTER_API_KEY
-openai.base_url = "https://openrouter.ai/api/v1"
+client = OpenAI(
+    api_key=OPENROUTER_API_KEY,
+    base_url="https://openrouter.ai/api/v1"
+)
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -51,7 +53,7 @@ async def handle_request(message: Message):
 
     try:
         await asyncio.sleep(1)
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="openrouter/gpt-3.5-turbo",
             messages=[{"role": "user", "content": message.text}]
         )
