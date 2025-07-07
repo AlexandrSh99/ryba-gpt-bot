@@ -7,6 +7,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiohttp import web
 from dotenv import load_dotenv
 from collections import defaultdict
+import g4f
 
 load_dotenv()
 
@@ -38,9 +39,20 @@ async def handle_request(message: Message):
     user_id = message.from_user.id
     if user_requests[user_id] >= 6:
         await message.answer(LIMIT_MESSAGE)
-    else:
-        user_requests[user_id] += 1
-        await message.answer(f"✅ Запрос #{user_requests[user_id]} принят! (Пока ChatGPT отключён)")
+        return
+
+    user_requests[user_id] += 1
+    await message.answer("🔄 Обрабатываю запрос...")
+
+    try:
+        response = g4f.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            provider=g4f.Provider.You,
+            messages=[{"role": "user", "content": message.text}]
+        )
+        await message.answer(response)
+    except Exception as e:
+        await message.answer(f"⚠️ Ошибка при обращении к AI: {e}")
 
 async def on_startup(bot: Bot):
     await bot.set_webhook(WEBHOOK_URL)
