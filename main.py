@@ -46,15 +46,15 @@ async def handle_request(message: Message):
 
     try:
         response = await g4f.ChatCompletion.create_async(
-            model="gpt-3.5-turbo",
-            provider=g4f.Provider.You,
+            model="gpt-4o-mini",
+            provider=g4f.Provider.Bing,
             messages=[{"role": "user", "content": message.text}]
         )
         await message.answer(response)
     except Exception as e:
         await message.answer(f"⚠️ Ошибка при обращении к AI: {e}")
 
-async def on_startup():
+async def on_startup(_: object):
     await bot.set_webhook(WEBHOOK_URL)
 
 def create_app():
