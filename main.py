@@ -1,69 +1,60 @@
+import asyncio
 import logging
 import os
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from aiohttp import web
+from aiogram.filters import CommandStart
+from g4f.client import Client
 from dotenv import load_dotenv
-import g4f
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_HOST = os.getenv("RENDER_EXTERNAL_URL")
-WEBHOOK_PATH = "/webhook"
-WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
 bot = Bot(token=BOT_TOKEN)
-bot.set_current(bot)
-dp = Dispatcher(storage=MemoryStorage())
+dp = Dispatcher()
+gpt_client = Client()
 
+# Хранилище количества запросов
 user_requests = {}
+
+# Максимум бесплатных запросов
 FREE_LIMIT = 6
 
-async def ask_gpt(message_text: str) -> str:
-    try:
-        response = await g4f.ChatCompletion.create_async(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": message_text}],
-            provider=g4f.Provider.You
-        )
-        return response
-    except Exception as e:
-        return f"⚠️ Ошибка при обращении к AI: {e}"
-
-@dp.message(F.text == "/start")
-async def start_handler(message: Message):
+@dp.message(CommandStart())
+async def start(message: Message):
     await message.answer(
-        "Привет! 🎣 Я бот, который поможет тебе разобраться в рыбалке: где ловить, на что, когда и как.\n\n"
-        "Ты можешь задать вопрос — например: ‘Где ловить щуку летом?’\n\n"
-        "🔹 Доступно 6 бесплатных запросов, далее — нужна оплата."
+        "🎣 Привет! Я бот для обучения рыбалке.\n"
+        "Можешь задать любой вопрос про снасти, водоёмы, наживки и т.д.\n\n"
+        "Бесплатно доступно 6 запросов, дальше — оплата 💰"
     )
 
-@dp.message()
+@dp.message(F.text)
 async def handle_message(message: Message):
     user_id = message.from_user.id
-    count = user_requests.get(user_id, 0)
+    user_requests[user_id] = user_requests.get(user_id, 0)
 
-    if count >= FREE_LIMIT:
-        await message.answer("🚫 Лимит бесплатных запросов исчерпан. Чтобы продолжить — оплатите подписку.")
+    if user_requests[user_id] >= FREE_LIMIT:
+        await message.answer("🔒 Лимит из 6 бесплатных сообщений исчерпан. Чтобы продолжить — оплати доступ.")
         return
 
-    user_requests[user_id] = count + 1
-    await message.answer("⌛ Обрабатываю запрос...")
-    reply = await ask_gpt(message.text)
-    await message.answer(reply)
+    await message.answer("🕔 Думаю...")
 
-async def on_startup(app):
-    await bot.set_webhook(WEBHOOK_URL)
+    try:
+        response = gpt_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": message.text}]
+        )
+        user_requests[user_id] += 1
+        await message.answer(response.choices[0].message.content)
 
-def create_app():
-    app = web.Application()
-    dp.startup.register(on_startup)
-    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-    setup_application(app, dp)
-    return app
+    except Exception as e:
+        logging.exception(e)
+        await message.answer("⚠️ Ошибка при обращении к AI.")
 
-if __name__ == '__main__':
-    web.run_app(create_app(), port=int(os.environ.get('PORT', 10000)))
+async def main():
+    logging.basicConfig(level=logging.INFO)
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
